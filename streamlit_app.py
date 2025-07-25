@@ -1,16 +1,17 @@
-# Streamlit App: Advanced Casting Cost Estimator with Enhanced UI for GitHub
-# ==============================================================================
+"""
+Advanced Casting Cost Estimator
+===============================
+
+This Streamlit application calculates the total cost of casting manufacturing processes,
+including post-casting operations like fettling, heat treatment, NDT, and surface finishing.
+"""
 
 import math
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 
-# Set global seaborn theme
-sns.set_theme(style="whitegrid")
-
-# ----- CONSTANTS -------------------------------------------------------------
+# ===== CONSTANTS ==============================================================
 METAL_DENSITIES = {
     "Grey Iron": 7100.0,
     "Steel": 7800.0,
@@ -31,186 +32,367 @@ REJECTION_FACTORS = {
     "Steel": {"High": 1.095, "Medium": 1.075, "Low": 1.025}
 }
 
-# ----- CALCULATIONS ----------------------------------------------------------
-def direct_material_cost(p):
-    mass = p['density'] * (p['volume_cm3'] / 1e6)
-    return mass * p['unit_metal_cost'] * p['f_m'] * p['f_p']
+# ===== CALCULATION FUNCTIONS ==================================================
+def direct_material_cost(params):
+    """Calculate direct material cost (Eq.3)"""
+    mass = params['density'] * (params['volume_cm3'] / 1e6)  # kg
+    return mass * params['unit_metal_cost'] * params['f_m'] * params['f_p']
 
-def indirect_material_cost(p):
-    mould = p['mold_sand_weight'] * p['mold_sand_cost'] * p['sand_recycle_factor'] * p['f_r'] * p['mold_rejection_factor']
-    core = p['core_sand_weight'] * p['core_sand_cost'] * p['sand_recycle_factor'] * p['f_r'] * p['core_rejection_factor']
-    return mould + core + p['misc_material_cost']
+def indirect_material_cost(params):
+    """Calculate indirect material cost (Eq.4-9)"""
+    mould_sand = (params['mold_sand_weight'] * params['mold_sand_cost'] 
+                 * params['sand_recycle_factor'] * params['f_r'] 
+                 * params['mold_rejection_factor'])
+    
+    core_sand = (params['core_sand_weight'] * params['core_sand_cost'] 
+                * params['sand_recycle_factor'] * params['f_r'] 
+                * params['core_rejection_factor'])
+    
+    return mould_sand + core_sand + params['misc_material_cost']
 
-def labour_cost(p):
-    qual = p['design_rejection'] * p['salary_high_qual'] * p['designers_count'] * p['design_hours'] / p['quantity']
-    tech = p['f_r'] * p['activity_rejection'] * p['salary_technical'] * p['technicians_count'] * p['labor_hours'] / p['quantity']
-    return qual + tech
+def labour_cost(params):
+    """Calculate labor cost (Eq.11-13)"""
+    highly_qualified = (params['design_rejection'] 
+                       * params['salary_high_qual'] 
+                       * params['designers_count'] 
+                       * params['design_hours'] 
+                       / params['quantity'])
+    
+    technical = (params['f_r'] * params['activity_rejection'] 
+                * params['salary_technical'] 
+                * params['technicians_count'] 
+                * params['labor_hours'] 
+                / params['quantity'])
+    
+    return highly_qualified + technical
 
-def energy_cost(p):
-    mass = p['density'] * (p['volume_cm3'] / 1e6)
-    melting = p['energy_cost'] * p['melting_energy'] * (mass * 1.3) / 1000
-    holding = p['energy_cost'] * p['holding_energy'] * p['holding_time'] * (mass * 1.3) / 1000
-    return melting + holding + mass * p['other_energy_rate']
+def energy_cost(params):
+    """Calculate energy cost (Eq.14-20)"""
+    mass = params['density'] * (params['volume_cm3'] / 1e6)  # kg
+    melting = (params['energy_cost'] * params['melting_energy'] 
+              * (mass * 1.3) / 1000)  # 30% extra for feeder/gating
+    holding = (params['energy_cost'] * params['holding_energy'] 
+              * params['holding_time'] * (mass * 1.3) / 1000)
+    return melting + holding + mass * params['other_energy_rate']
 
-def tooling_cost(p):
-    software = p['software_updates_cost'] / p['design_units_produced']
-    consumables = p['tooling_consumables_cost'] / p['quantity']
-    maintenance = p['equipment_maintenance_cost'] / p['quantity']
-    machining = p['machining_cost_per_hour'] * p['machining_time']
+def tooling_cost(params):
+    """Calculate tooling cost (Eq.21-22)"""
+    software = params['software_updates_cost'] / params['design_units_produced']
+    consumables = params['tooling_consumables_cost'] / params['quantity']
+    maintenance = params['equipment_maintenance_cost'] / params['quantity']
+    machining = params['machining_cost_per_hour'] * params['machining_time']
     return software + consumables + maintenance + machining
 
-def post_casting_costs(p):
-    costs = {
-        'Fettling': p['fettling_labor_hours'] * p['fettling_labor_rate'] + p['fettling_equipment_cost'],
-        'Heat Treatment': p['heat_treatment_energy'] * p['energy_cost'] + p['heat_treatment_labor_hours'] * p['heat_treatment_labor_rate'],
-        'NDT': p['ndt_cost_per_part'],
-        'Pressure Testing': p['pressure_testing_labor_hours'] * p['pressure_testing_labor_rate'] + p['pressure_testing_equipment_cost'],
-        'Final Inspection': p['inspection_labor_hours'] * p['inspection_labor_rate'],
-        'Radiography': p['radiography_cost_per_part'],
-        'Plating': p['plating_material_cost'] + p['plating_labor_hours'] * p['plating_labor_rate']
-    }
+def post_casting_costs(params):
+    """Calculate all post-casting processing costs"""
+    costs = {}
+    
+    # Fettling costs
+    costs['Fettling'] = (params['fettling_labor_hours'] * params['fettling_labor_rate'] 
+                        + params['fettling_equipment_cost'])
+    
+    # Heat treatment costs
+    heat_treatment = (params['heat_treatment_energy'] * params['energy_cost']
+                      + params['heat_treatment_labor_hours'] * params['heat_treatment_labor_rate'])
+    costs['Heat Treatment'] = heat_treatment
+    
+    # Testing & inspection
+    costs['NDT'] = params['ndt_cost_per_part']
+    costs['Pressure Testing'] = (params['pressure_testing_labor_hours'] * params['pressure_testing_labor_rate'] 
+                                + params['pressure_testing_equipment_cost'])
+    costs['Final Inspection'] = params['inspection_labor_hours'] * params['inspection_labor_rate']
+    
+    # Special processes
+    costs['Radiography'] = params['radiography_cost_per_part']
+    costs['Plating'] = (params['plating_material_cost'] 
+                       + params['plating_labor_hours'] * params['plating_labor_rate'])
+    
     return costs
 
-def overhead_cost(p, man_cost):
-    admin = man_cost * p['admin_percentage'] / 100
-    depr = man_cost * p['depr_percentage'] / 100
-    return admin + depr
+def overhead_cost(params, manufacturing_cost):
+    """Calculate overhead cost (Eq.23)"""
+    admin = manufacturing_cost * params['admin_percentage'] / 100
+    depreciation = manufacturing_cost * params['depr_percentage'] / 100
+    return admin + depreciation
 
-def total_costs(p):
-    direct = direct_material_cost(p)
-    indirect = indirect_material_cost(p)
-    labour = labour_cost(p)
-    energy = energy_cost(p)
-    tooling = tooling_cost(p)
-    post = post_casting_costs(p)
-    post_total = sum(post.values())
-    man_cost = direct + indirect + labour + energy + tooling + post_total
-    overhead = overhead_cost(p, man_cost)
-    total = man_cost + overhead
-
-    breakdown = {
-        'Direct Material': direct,
-        'Indirect Material': indirect,
+def total_costs(params):
+    """Calculate total cost (Eq.1)"""
+    # Material costs
+    direct_mat = direct_material_cost(params)
+    indirect_mat = indirect_material_cost(params)
+    material_cost = direct_mat + indirect_mat
+    
+    # Core manufacturing costs
+    labour = labour_cost(params)
+    energy = energy_cost(params)
+    tooling_val = tooling_cost(params)
+    
+    # Post-casting costs
+    post_casting = post_casting_costs(params)
+    post_casting_total = sum(post_casting.values())
+    
+    # Manufacturing cost subtotal
+    manufacturing_cost = material_cost + labour + energy + tooling_val + post_casting_total
+    
+    # Overheads
+    overheads = overhead_cost(params, manufacturing_cost)
+    
+    total_cost = manufacturing_cost + overheads
+    
+    # Prepare detailed cost breakdown
+    cost_breakdown = {
+        'Direct Material': direct_mat,
+        'Indirect Material': indirect_mat,
         'Labour': labour,
         'Energy': energy,
-        'Tooling': tooling,
-        'Post Casting': post_total,
-        'Overheads': overhead,
-        'Total': total
+        'Tooling': tooling_val,
+        'Post Casting': post_casting_total,
+        'Overheads': overheads,
+        'Total': total_cost
     }
-    return breakdown, post
+    
+    return cost_breakdown, post_casting
 
-# ----- STREAMLIT UI ----------------------------------------------------------
+# ===== STREAMLIT UI ===========================================================
 def main():
-    st.set_page_config(page_title="Casting Cost Estimator", layout="wide", page_icon="🧱")
-    st.title("🧱 Advanced Casting Cost Estimator")
-    st.markdown("<style>h1{color:#2c3e50;}</style>", unsafe_allow_html=True)
-    st.caption("Enhanced version for GitHub deployment | Research base: Metals 2023, 13(2), 216")
-
-    st.markdown("---")
-    st.header("📥 Input Parameters")
-    st.info("Use the sidebar to input all required parameters.")
-
+    st.set_page_config(
+        layout="wide", 
+        page_title="Advanced Casting Cost Estimator",
+        page_icon="🔩"
+    )
+    st.title("🔩 Advanced Casting Cost Estimator")
+    st.caption("Based on research: Metals 2023, 13(2), 216 - Cost Estimation of Metal Casting with Sand Mould")
+    
+    # Initialize session state
+    if 'density' not in st.session_state:
+        st.session_state.density = METAL_DENSITIES["Grey Iron"]
+    if 'prev_metal' not in st.session_state:
+        st.session_state.prev_metal = "Grey Iron"
+    
+    # Sidebar for inputs
     with st.sidebar:
-        st.title("⚙️ Parameters Setup")
-        st.markdown("Configure your process parameters below.")
-
-        # Example default setup (this block would normally continue)
-        p = {}
-        p['quote'] = st.number_input("Quoted Price (£)", value=1000.0)
-        p['metal'] = st.selectbox("Metal Type", METAL_DENSITIES.keys())
-        p['volume_cm3'] = st.number_input("Volume (cm³)", value=1500.0)
-        p['density'] = METAL_DENSITIES[p['metal']]
-        p['unit_metal_cost'] = st.number_input("Metal Cost (£/kg)", value=1.0)
-        p['quantity'] = st.number_input("Order Quantity", value=500)
-        p['f_m'] = 1.05
-        p['f_p'] = 1.02
-        p['f_r'] = 1.05
-        p['mold_sand_weight'] = 5
-        p['mold_sand_cost'] = 0.05
-        p['core_sand_weight'] = 1
-        p['core_sand_cost'] = 0.1
-        p['sand_recycle_factor'] = 0.7
-        p['misc_material_cost'] = 10
-        p['mold_rejection_factor'] = 1.05
-        p['core_rejection_factor'] = 1.05
-        p['designers_count'] = 2
-        p['design_hours'] = 40
-        p['salary_high_qual'] = 60
-        p['design_rejection'] = 1.1
-        p['technicians_count'] = 3
-        p['labor_hours'] = 8
-        p['salary_technical'] = 25
-        p['activity_rejection'] = 1.05
-        p['energy_cost'] = 0.1
-        p['melting_energy'] = 580
-        p['holding_energy'] = 0.4
-        p['holding_time'] = 30
-        p['other_energy_rate'] = 0.5
-        p['software_updates_cost'] = 5000
-        p['design_units_produced'] = 50
-        p['tooling_consumables_cost'] = 200
-        p['equipment_maintenance_cost'] = 1000
-        p['machining_cost_per_hour'] = 40
-        p['machining_time'] = 2
-        p['admin_percentage'] = 10
-        p['depr_percentage'] = 20
-        p['fettling_labor_hours'] = 0.5
-        p['fettling_labor_rate'] = 25
-        p['fettling_equipment_cost'] = 5
-        p['heat_treatment_energy'] = 50
-        p['heat_treatment_labor_rate'] = 30
-        p['heat_treatment_labor_hours'] = 1
-        p['ndt_cost_per_part'] = 15
-        p['inspection_labor_hours'] = 0.5
-        p['inspection_labor_rate'] = 25
-        p['pressure_testing_labor_hours'] = 0.5
-        p['pressure_testing_labor_rate'] = 35
-        p['pressure_testing_equipment_cost'] = 20
-        p['radiography_cost_per_part'] = 25
-        p['plating_material_cost'] = 15
-        p['plating_labor_hours'] = 1
-        p['plating_labor_rate'] = 30
-
-    st.markdown("---")
-
-    if st.button("🚀 Run Cost Estimation"):
-        st.success("Calculation Complete!")
-        breakdown, post = total_costs(p)
-
-        df_main = pd.DataFrame(breakdown.items(), columns=["Category", "Cost (£)"])
-        df_post = pd.DataFrame(post.items(), columns=["Post-Process", "Cost (£)"])
-
-        st.subheader("📊 Summary Breakdown")
-        st.dataframe(df_main.style.format("£{:,.2f}"))
-
+        st.header("⚙️ Basic Parameters")
+        params = {}
+        
+        # Part information
+        params['quote'] = st.number_input("Quoted Price (£)", value=1000.0, min_value=0.0)
+        params['metal'] = st.selectbox("Metal Type", list(METAL_DENSITIES.keys()))
+        params['volume_cm3'] = st.number_input("Volume (cm³)", value=1830.0, min_value=0.0)
+        
+        # Handle density input with proper type consistency
+        if st.session_state.prev_metal != params['metal']:
+            st.session_state.density = METAL_DENSITIES[params['metal']]
+            st.session_state.prev_metal = params['metal']
+        
+        params['density'] = st.number_input(
+            "Density (kg/m³)", 
+            value=float(st.session_state.density),  # Ensure float type
+            min_value=0.0,
+            step=1.0
+        )
+        st.session_state.density = params['density']  # Update session state
+        
+        params['unit_metal_cost'] = st.number_input("Metal Cost (£/kg)", value=1.0, min_value=0.0)
+        params['quantity'] = st.number_input("Order Quantity", value=5000, min_value=1)
+        params['shape'] = st.slider("Shape Complexity (0-100)", 0, 100, 30)
+        params['accuracy'] = st.slider("Accuracy Index (1-100)", 1, 100, 35)
+        
+        # Process factors
+        st.subheader("🔥 Process Factors")
+        params['furnace'] = st.selectbox("Furnace Type", list(FURNACE_EFFICIENCY.keys()))
+        fe = FURNACE_EFFICIENCY[params['furnace']]
+        
         col1, col2 = st.columns(2)
         with col1:
-            st.subheader("Pie Chart")
-            fig1, ax1 = plt.subplots()
-            ax1.pie(df_main["Cost (£)"][:-1], labels=df_main["Category"][:-1], autopct='%1.1f%%', startangle=90)
-            st.pyplot(fig1)
-
+            params['f_m'] = st.slider("Melting Loss (fₘ)", 
+                                     float(fe['m_low']), 
+                                     float(fe['m_high']), 
+                                     float((fe['m_low'] + fe['m_high'])/2))
+            params['f_p'] = st.slider("Pouring Loss (fₚ)", 1.01, 1.07, 1.03)
         with col2:
-            st.subheader("Bar Chart")
-            fig2, ax2 = plt.subplots()
-            sns.barplot(data=df_main[:-1], x="Category", y="Cost (£)", ax=ax2)
-            ax2.tick_params(axis='x', rotation=45)
-            st.pyplot(fig2)
+            params['f_y'] = st.slider("Yield Factor (f_y)", 0.5, 1.0, 0.76)
+            params['f_eta'] = st.slider("Furnace Eff. (η)", 
+                                       float(fe['eff_low']), 
+                                       float(fe['eff_high']), 
+                                       float((fe['eff_low'] + fe['eff_high'])/2))
+        
+        quality = st.selectbox("Quality Level", ["High", "Medium", "Low"])
+        params['f_r'] = REJECTION_FACTORS.get(params['metal'], {}).get(quality, 1.0)
+        st.info(f"Rejection Factor: {params['f_r']:.3f}")
 
-        with st.expander("🔍 Post-Casting Process Breakdown"):
-            st.dataframe(df_post.style.format("£{:,.2f}"))
-            fig3, ax3 = plt.subplots()
-            sns.barplot(data=df_post, x="Post-Process", y="Cost (£)", ax=ax3)
-            ax3.tick_params(axis='x', rotation=45)
-            st.pyplot(fig3)
+        # Labor parameters
+        st.subheader("👷 Labor Parameters")
+        col1, col2 = st.columns(2)
+        with col1:
+            params['designers_count'] = st.number_input("Design Engineers", value=2, min_value=1)
+            params['design_hours'] = st.number_input("Design Hours", value=40.0, min_value=0.0)
+            params['salary_high_qual'] = st.number_input("High-Qual Salary (£/h)", value=60.0, min_value=0.0)
+            params['design_rejection'] = st.slider("Design Rejection Factor", 1.0, 1.2, 1.1)
+        with col2:
+            params['technicians_count'] = st.number_input("Technicians", value=3, min_value=1)
+            params['labor_hours'] = st.number_input("Labor Hours", value=8.0, min_value=0.0)
+            params['salary_technical'] = st.number_input("Technical Salary (£/h)", value=25.0, min_value=0.0)
+            params['activity_rejection'] = st.slider("Activity Rejection Factor", 1.0, 1.2, 1.05)
 
-        st.download_button(
-            "📥 Download Cost Report CSV",
-            df_main.to_csv(index=False).encode(),
-            f"cost_estimation_{p['metal']}_{p['quantity']}pcs.csv",
-            "text/csv"
-        )
+        # Materials & sands
+        st.subheader("🏗️ Materials & Sands")
+        col1, col2 = st.columns(2)
+        with col1:
+            params['mold_sand_weight'] = st.number_input("Mold Sand Weight (kg)", value=5.0, min_value=0.0)
+            params['mold_sand_cost'] = st.number_input("Mold Sand Cost (£/kg)", value=0.05, min_value=0.0)
+            params['core_sand_weight'] = st.number_input("Core Sand Weight (kg)", value=1.0, min_value=0.0)
+        with col2:
+            params['core_sand_cost'] = st.number_input("Core Sand Cost (£/kg)", value=0.10, min_value=0.0)
+            params['sand_recycle_factor'] = st.slider("Sand Recycle Factor", 0.1, 1.0, 0.7)
+            params['misc_material_cost'] = st.number_input("Misc. Mat. Cost (£)", value=0.0, min_value=0.0)
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            params['mold_rejection_factor'] = st.slider("Mold Rejection Factor", 1.0, 1.2, 1.05)
+        with col2:
+            params['core_rejection_factor'] = st.slider("Core Rejection Factor", 1.0, 1.2, 1.05)
+
+        # Energy parameters
+        st.subheader("⚡ Energy Parameters")
+        col1, col2 = st.columns(2)
+        with col1:
+            params['energy_cost'] = st.number_input("Energy Cost (£/kWh)", value=0.10, min_value=0.0)
+            params['melting_energy'] = st.number_input("Melting Energy (kWh/t)", value=580.0, min_value=0.0)
+        with col2:
+            params['holding_energy'] = st.number_input("Holding Energy (kWh/t/min)", value=0.4, min_value=0.0)
+            params['holding_time'] = st.number_input("Holding Time (min)", value=30.0, min_value=0.0)
+        params['other_energy_rate'] = st.number_input("Other Energy (£/kg)", value=0.50, min_value=0.0)
+
+        # Tooling parameters
+        st.subheader("🛠️ Tooling Parameters")
+        col1, col2 = st.columns(2)
+        with col1:
+            params['software_updates_cost'] = st.number_input("Software Updates (£/yr)", value=5000.0, min_value=0.0)
+            params['design_units_produced'] = st.number_input("Design Units Produced", value=50, min_value=1)
+        with col2:
+            params['tooling_consumables_cost'] = st.number_input("Tooling Consumables (£)", value=200.0, min_value=0.0)
+            params['equipment_maintenance_cost'] = st.number_input("Equipment Maintenance (£)", value=1000.0, min_value=0.0)
+        params['machining_cost_per_hour'] = st.number_input("Machining Cost (£/h)", value=40.0, min_value=0.0)
+        params['machining_time'] = st.number_input("Machining Time (h)", value=2.0, min_value=0.0)
+
+        # Overheads
+        st.subheader("📊 Overheads")
+        col1, col2 = st.columns(2)
+        with col1:
+            params['admin_percentage'] = st.number_input("Admin Overhead (%)", value=10.0, min_value=0.0)
+        with col2:
+            params['depr_percentage'] = st.number_input("Depreciation (%)", value=20.0, min_value=0.0)
+        
+        # Post-casting processes
+        st.subheader("🔧 Post-Casting Processes")
+        
+        st.write("**Fettling**")
+        col1, col2 = st.columns(2)
+        with col1:
+            params['fettling_labor_hours'] = st.number_input("Fettling Labor Hours", value=0.5, min_value=0.0)
+            params['fettling_labor_rate'] = st.number_input("Fettling Labor Rate (£/h)", value=25.0, min_value=0.0)
+        with col2:
+            params['fettling_equipment_cost'] = st.number_input("Fettling Equipment Cost (£)", value=5.0, min_value=0.0)
+        
+        st.write("**Heat Treatment**")
+        col1, col2 = st.columns(2)
+        with col1:
+            params['heat_treatment_energy'] = st.number_input("Heat Treatment Energy (kWh)", value=50.0, min_value=0.0)
+            params['heat_treatment_labor_rate'] = st.number_input("Heat Treatment Labor Rate (£/h)", value=30.0, min_value=0.0)
+        with col2:
+            params['heat_treatment_labor_hours'] = st.number_input("Heat Treatment Labor Hours", value=1.0, min_value=0.0)
+        
+        st.write("**Testing & Inspection**")
+        col1, col2 = st.columns(2)
+        with col1:
+            params['ndt_cost_per_part'] = st.number_input("NDT Cost per Part (£)", value=15.0, min_value=0.0)
+            params['inspection_labor_hours'] = st.number_input("Final Inspection Hours", value=0.5, min_value=0.0)
+        with col2:
+            params['inspection_labor_rate'] = st.number_input("Inspection Labor Rate (£/h)", value=25.0, min_value=0.0)
+        
+        st.write("**Pressure Testing**")
+        col1, col2 = st.columns(2)
+        with col1:
+            params['pressure_testing_labor_hours'] = st.number_input("Pressure Testing Labor Hours", value=0.5, min_value=0.0)
+        with col2:
+            params['pressure_testing_labor_rate'] = st.number_input("Pressure Testing Labor Rate (£/h)", value=35.0, min_value=0.0)
+        params['pressure_testing_equipment_cost'] = st.number_input("Pressure Testing Equipment (£)", value=20.0, min_value=0.0)
+        
+        st.write("**Radiography & Plating**")
+        col1, col2 = st.columns(2)
+        with col1:
+            params['radiography_cost_per_part'] = st.number_input("Radiography Cost per Part (£)", value=25.0, min_value=0.0)
+        with col2:
+            params['plating_material_cost'] = st.number_input("Plating Material Cost (£)", value=15.0, min_value=0.0)
+        col1, col2 = st.columns(2)
+        with col1:
+            params['plating_labor_hours'] = st.number_input("Plating Labor Hours", value=1.0, min_value=0.0)
+        with col2:
+            params['plating_labor_rate'] = st.number_input("Plating Labor Rate (£/h)", value=30.0, min_value=0.0)
+
+    # Main content area
+    if st.button("🚀 Calculate Total Cost", use_container_width=True):
+        with st.spinner("Calculating costs..."):
+            try:
+                cost_breakdown, post_casting = total_costs(params)
+                
+                # Results display
+                st.subheader("📊 Cost Breakdown")
+                col1, col2 = st.columns([1, 2])
+                
+                with col1:
+                    # Cost table
+                    df = pd.DataFrame.from_dict(cost_breakdown, orient='index', columns=['£ Amount'])
+                    st.dataframe(df.style.format("£{:,.2f}"), height=500)
+                    
+                    # Variance metric
+                    variance = params['quote'] - cost_breakdown['Total']
+                    variance_percent = (variance / params['quote']) * 100 if params['quote'] else 0
+                    st.metric("Variance (Quote vs Actual)", 
+                             f"£{variance:,.2f} ({variance_percent:.1f}%)", 
+                             delta_color="inverse" if variance < 0 else "normal")
+                
+                with col2:
+                    # Pie chart (exclude total)
+                    pie_fig, pie_ax = plt.subplots()
+                    labels = [k for k in cost_breakdown.keys() if k != 'Total']
+                    sizes = [cost_breakdown[k] for k in labels]
+                    pie_ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90)
+                    pie_ax.set_title("Cost Distribution")
+                    st.pyplot(pie_fig)
+                    
+                    # Bar chart
+                    bar_fig, bar_ax = plt.subplots()
+                    bar_ax.bar(labels, sizes)
+                    bar_ax.set_ylabel("Cost (£)")
+                    bar_ax.set_title("Cost by Category")
+                    bar_ax.tick_params(axis='x', rotation=45)
+                    st.pyplot(bar_fig)
+                
+                # Detailed post-casting breakdown
+                with st.expander("🔍 Detailed Post-Casting Costs"):
+                    st.subheader("Post-Casting Process Breakdown")
+                    post_df = pd.DataFrame.from_dict(post_casting, orient='index', columns=['£ Amount'])
+                    st.dataframe(post_df.style.format("£{:,.2f}"))
+                    
+                    # Visualization for post-casting costs
+                    fig, ax = plt.subplots()
+                    ax.bar(post_casting.keys(), post_casting.values())
+                    ax.set_ylabel("Cost (£)")
+                    ax.set_title("Post-Casting Process Costs")
+                    plt.xticks(rotation=45, ha='right')
+                    st.pyplot(fig)
+                
+                # Export option
+                st.download_button(
+                    label="📥 Export Cost Report as CSV",
+                    data=df.to_csv().encode('utf-8'),
+                    file_name=f"casting_cost_report_{params['metal']}_{params['quantity']}pcs.csv",
+                    mime="text/csv"
+                )
+                
+            except Exception as e:
+                st.error(f"Error in calculation: {str(e)}")
 
 if __name__ == "__main__":
     main()
