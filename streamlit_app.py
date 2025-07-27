@@ -1,8 +1,8 @@
-
 import math
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 from pathlib import Path
 
 # ===== CONSTANTS ==============================================================
@@ -323,37 +323,16 @@ def main():
                                   delta_color="normal" if profit_loss >= 0 else "inverse")
                     st.divider()
                     st.subheader("Cost Distribution")
-                    col3, col4 = st.columns([1, 1])
-                    with col3:
-                       # Pie chart (exclude total and profit/loss)
-pie_fig, pie_ax = plt.subplots(figsize=(6, 4))
-labels = [k for k in cost_breakdown.keys() if k not in ['Total', 'Profit/Loss']]
-sizes = [cost_breakdown[k] for k in labels]
-
-# Plot pie chart
-wedges, texts, autotexts = pie_ax.pie(
-    sizes,
-    labels=labels,
-    autopct='%1.1f%%',
-    startangle=90,
-    textprops={'fontsize': 10},
-    labeldistance=1.1,
-    pctdistance=0.8
-)
-
-pie_ax.set_title("Cost Distribution")
-pie_ax.axis('equal')  # Equal aspect ratio ensures circle shape
-plt.tight_layout()
-st.pyplot(pie_fig)
-
-                    with col4:
-                        # Bar chart
-                        bar_fig, bar_ax = plt.subplots(figsize=(6, 4))
-                        bar_ax.bar(labels, sizes)
-                        bar_ax.set_ylabel("Cost (£)")
-                        bar_ax.set_title("Cost by Category")
-                        bar_ax.tick_params(axis='x', rotation=45)
-                        st.pyplot(bar_fig)
+                    # Interactive bar chart (replacing pie chart)
+                    labels = [k for k in cost_breakdown.keys() if k not in ['Total', 'Profit/Loss']]
+                    sizes = [cost_breakdown[k] for k in labels]
+                    fig = go.Figure(data=[go.Bar(x=sizes, y=labels, orientation='h', text=sizes, textposition='auto')])
+                    fig.update_layout(title="Cost Distribution", xaxis_title="Cost (£)", yaxis_title="Category")
+                    st.plotly_chart(fig, use_container_width=True)
+                    # Interactive bar chart (replacing bar chart)
+                    fig2 = go.Figure(data=[go.Bar(x=labels, y=sizes, text=sizes, textposition='auto')])
+                    fig2.update_layout(title="Cost by Category", xaxis_title="Category", yaxis_title="Cost (£)", xaxis_tickangle=-45)
+                    st.plotly_chart(fig2, use_container_width=True)
                 with tab2:
                     # Cost table
                     st.subheader("Detailed Cost Breakdown")
