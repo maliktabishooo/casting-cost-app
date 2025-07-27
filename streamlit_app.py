@@ -1,6 +1,8 @@
 import math
 import streamlit as st
 import pandas as pd
+import matplotlib
+matplotlib.use('Agg')  # Set non-interactive backend for Streamlit compatibility
 import matplotlib.pyplot as plt
 from pathlib import Path
 
@@ -96,31 +98,35 @@ def overhead_cost(params, manufacturing_cost):
 
 def total_costs(params):
     """Calculate total cost (Eq.1)"""
-    direct_mat = direct_material_cost(params)
-    indirect_mat = indirect_material_cost(params)
-    material_cost = direct_mat + indirect_mat
-    labour = labour_cost(params)
-    energy = energy_cost(params)
-    tooling_val = tooling_cost(params)
-    post_casting = post_casting_costs(params)
-    post_casting_total = sum(post_casting.values())
-    manufacturing_cost = material_cost + labour + energy + tooling_val + post_casting_total
-    overheads = overhead_cost(params, manufacturing_cost)
-    total_cost = manufacturing_cost + overheads
-    profit_loss = params['quote'] - total_cost
-    profit_loss_percent = (profit_loss / params['quote'] * 100) if params['quote'] else 0
-    cost_breakdown = {
-        'Direct Material': direct_mat,
-        'Indirect Material': indirect_mat,
-        'Labour': labour,
-        'Energy': energy,
-        'Tooling': tooling_val,
-        'Post Casting': post_casting_total,
-        'Overheads': overheads,
-        'Total': total_cost,
-        'Profit/Loss': profit_loss
-    }
-    return cost_breakdown, post_casting, profit_loss, profit_loss_percent
+    try:
+        direct_mat = direct_material_cost(params)
+        indirect_mat = indirect_material_cost(params)
+        material_cost = direct_mat + indirect_mat
+        labour = labour_cost(params)
+        energy = energy_cost(params)
+        tooling_val = tooling_cost(params)
+        post_casting = post_casting_costs(params)
+        post_casting_total = sum(post_casting.values())
+        manufacturing_cost = material_cost + labour + energy + tooling_val + post_casting_total
+        overheads = overhead_cost(params, manufacturing_cost)
+        total_cost = manufacturing_cost + overheads
+        profit_loss = params['quote'] - total_cost
+        # Safeguard against division by zero
+        profit_loss_percent = (profit_loss / params['quote'] * 100) if params['quote'] != 0 else 0
+        cost_breakdown = {
+            'Direct Material': direct_mat,
+            'Indirect Material': indirect_mat,
+            'Labour': labour,
+            'Energy': energy,
+            'Tooling': tooling_val,
+            'Post Casting': post_casting_total,
+            'Overheads': overheads,
+            'Total': total_cost,
+            'Profit/Loss': profit_loss
+        }
+        return cost_breakdown, post_casting, profit_loss, profit_loss_percent
+    except Exception as e:
+        raise ValueError(f"Calculation error: {str(e)}")
 
 # ===== STREAMLIT UI ===========================================================
 def main():
@@ -173,12 +179,15 @@ def main():
     st.set_page_config(
         layout="wide",
         page_title="Advanced Casting Cost Estimator",
-        page_icon=str(image_path)
+        page_icon=str(image_path) if image_path.exists() else None
     )
     # Header with logo and title
     col1, col2 = st.columns([1, 5])
     with col1:
-        st.image(str(image_path), width=120)
+        try:
+            st.image(str(image_path), width=120)
+        except FileNotFoundError:
+            st.warning("Logo image not found. Continuing without logo.")
     with col2:
         st.title("🔧 Advanced Casting Cost Estimator")
         st.caption("Based on *Metals 2023, 13(2), 216 - Cost Estimation of Metal Casting with Sand Mould*")
@@ -208,7 +217,7 @@ def main():
             )
             st.session_state.density = params['density']
             params['unit_metal_cost'] = st.number_input("Metal Cost (£/kg)", value=1.0, min_value=0.0)
-            params['quantity'] = st.number_input("Order Quantity", value=5000, min_value=1)
+            params['quantity'] = st.number_input("Order Quantity", value=5000, min_value=1, help="Must be at least 1 to avoid division errors")
             params['shape'] = st.slider("Shape Complexity (0-100)", 0, 100, 30)
             params['accuracy'] = st.slider("Accuracy Index (1-100)", 1, 100, 35)
 
@@ -275,7 +284,7 @@ def main():
             col1, col2 = st.columns(2)
             with col1:
                 params['software_updates_cost'] = st.number_input("Software Updates (£/yr)", value=5000.0, min_value=0.0)
-                params['design_units_produced'] = st.number_input("Design Units Produced", value=50, min_value=1)
+                params['design_units_produced'] = st.number_input("Design Units Produced", value=50, min_value=1, help="Must be at least 1 to avoid division errors")
             with col2:
                 params['tooling_consumables_cost'] = st.number_input("Tooling Consumables (£)", value=200.0, min_value=0.0)
                 params['equipment_maintenance_cost'] = st.number_input("Equipment Maintenance (£)", value=1000.0, min_value=0.0)
@@ -359,6 +368,7 @@ def main():
                         hbar_ax.set_xlabel("Cost (£)")
                         hbar_ax.set_title("Cost Distribution")
                         hbar_ax.grid(True, alpha=0.3)
+                        plt.tight_layout()
                         st.pyplot(hbar_fig)
                     with col4:
                         # Vertical bar chart with colors
@@ -368,6 +378,7 @@ def main():
                         bar_ax.set_title("Cost by Category")
                         bar_ax.tick_params(axis='x', rotation=45)
                         bar_ax.grid(True, axis='y', alpha=0.3)
+                        plt.tight_layout()
                         st.pyplot(bar_fig)
                 with tab2:
                     st.subheader("Detailed Cost Breakdown")
@@ -393,6 +404,7 @@ def main():
                     ax.tick_params(axis='x', rotation=45)
                     ax.grid(True, axis='y', alpha=0.3)
                     plt.xticks(rotation=45, ha='right')
+                    plt.tight_layout()
                     st.pyplot(fig)
             except Exception as e:
                 st.error(f"Error in calculation: {str(e)}")
