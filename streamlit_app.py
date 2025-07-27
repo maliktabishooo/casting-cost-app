@@ -10,6 +10,7 @@ import math
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+from pathlib import Path
 
 # ===== CONSTANTS ==============================================================
 METAL_DENSITIES = {
@@ -155,16 +156,20 @@ def total_costs(params):
 
 # ===== STREAMLIT UI ===========================================================
 def main():
+    # Construct the absolute path to the image file
+    script_dir = Path(__file__).parent
+    image_path = script_dir / "budget.png"
+
     st.set_page_config(
         layout="wide", 
         page_title="Advanced Casting Cost Estimator",
-        page_icon="budget.png"
+        page_icon=str(image_path)
     )
 
     # Create columns for the title and image
     col1, col2 = st.columns([1, 5])
     with col1:
-        st.image("budget.png", width=120)
+        st.image(str(image_path), width=120)
     with col2:
         st.title("Advanced Casting Cost Estimator")
 
