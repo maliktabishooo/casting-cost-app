@@ -124,6 +124,15 @@ def total_costs(params):
 
 # ===== STREAMLIT UI ===========================================================
 def main():
+    # Construct the absolute path to the image file
+    script_dir = Path(__file__).parent
+    image_path = script_dir / "budget.png"
+    st.set_page_config(
+        layout="wide",
+        page_title="Advanced Casting Cost Estimator",
+        page_icon=str(image_path)
+    )
+
     # Custom CSS for enhanced color scheme and professional styling
     st.markdown("""
         <style>
@@ -165,15 +174,6 @@ def main():
         }
         </style>
     """, unsafe_allow_html=True)
-
-    # Construct the absolute path to the image file
-    script_dir = Path(__file__).parent
-    image_path = script_dir / "budget.png"
-    st.set_page_config(
-        layout="wide",
-        page_title="Advanced Casting Cost Estimator",
-        page_icon=str(image_path)
-    )
 
     # Create columns for the title and image
     col1, col2 = st.columns([1, 5])
@@ -310,14 +310,14 @@ def main():
             params['inspection_labor_hours'] = st.number_input("Final Inspection Hours", value=0.5, min_value=0.0)
         with col2:
             params['inspection_labor_rate'] = st.number_input("Inspection Labor Rate (£/h)", value=25.0, min_value=0.0)
-        st.write("**Pressure Testing**")
+        st.markdown("**Pressure Testing**")
         col1, col2 = st.columns(2)
         with col1:
             params['pressure_testing_labor_hours'] = st.number_input("Pressure Testing Labor Hours", value=0.5, min_value=0.0)
         with col2:
             params['pressure_testing_labor_rate'] = st.number_input("Pressure Testing Labor Rate (£/h)", value=35.0, min_value=0.0)
             params['pressure_testing_equipment_cost'] = st.number_input("Pressure Testing Equipment (£)", value=20.0, min_value=0.0)
-        st.write("**Radiography & Plating**")
+        st.markdown("**Radiography & Plating**")
         col1, col2 = st.columns(2)
         with col1:
             params['radiography_cost_per_part'] = st.number_input("Radiography Cost per Part (£)", value=25.0, min_value=0.0)
