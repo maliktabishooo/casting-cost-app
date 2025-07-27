@@ -2,7 +2,6 @@ import math
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-import plotly.graph_objects as go
 from pathlib import Path
 
 # ===== CONSTANTS ==============================================================
@@ -90,8 +89,7 @@ def post_casting_costs(params):
     costs['Final Inspection'] = params['inspection_labor_hours'] * params['inspection_labor_rate']
     # Special processes
     costs['Radiography'] = params['radiography_cost_per_part']
-    costs['Plating'] = (params['plating_material_cost']
-                        + params['plating_labor_hours'] * params['plating_labor_rate'])
+    costs['Plating'] = params['plating_material_cost']  # Updated to use only plating price
     return costs
 
 def overhead_cost(params, manufacturing_cost):
@@ -292,12 +290,13 @@ def main():
         with col1:
             params['radiography_cost_per_part'] = st.number_input("Radiography Cost per Part (£)", value=25.0, min_value=0.0)
         with col2:
-            params['plating_material_cost'] = st.number_input("Plating Material Cost (£)", value=15.0, min_value=0.0)
+            params['plating_material_cost'] = st.number_input("Plating Price (£)", value=15.0, min_value=0.0)
+            # Removed plating_labor_hours and plating_labor_rate inputs
         col1, col2 = st.columns(2)
         with col1:
-            params['plating_labor_hours'] = st.number_input("Plating Labor Hours", value=1.0, min_value=0.0)
+            pass  # Removed plating_labor_hours
         with col2:
-            params['plating_labor_rate'] = st.number_input("Plating Labor Rate (£/h)", value=30.0, min_value=0.0)
+            pass  # Removed plating_labor_rate
     # Main content area
     if st.button("🚀 Calculate Total Cost", use_container_width=True):
         with st.spinner("Calculating costs..."):
@@ -323,16 +322,25 @@ def main():
                                   delta_color="normal" if profit_loss >= 0 else "inverse")
                     st.divider()
                     st.subheader("Cost Distribution")
-                    # Interactive bar chart (replacing pie chart)
+                    # Stacked bar chart to avoid overlap
                     labels = [k for k in cost_breakdown.keys() if k not in ['Total', 'Profit/Loss']]
                     sizes = [cost_breakdown[k] for k in labels]
-                    fig = go.Figure(data=[go.Bar(x=sizes, y=labels, orientation='h', text=sizes, textposition='auto')])
-                    fig.update_layout(title="Cost Distribution", xaxis_title="Cost (£)", yaxis_title="Category")
-                    st.plotly_chart(fig, use_container_width=True)
-                    # Interactive bar chart (replacing bar chart)
-                    fig2 = go.Figure(data=[go.Bar(x=labels, y=sizes, text=sizes, textposition='auto')])
-                    fig2.update_layout(title="Cost by Category", xaxis_title="Category", yaxis_title="Cost (£)", xaxis_tickangle=-45)
-                    st.plotly_chart(fig2, use_container_width=True)
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    ax.bar(labels, sizes, color=['#FF9999', '#66B2FF', '#99FF99', '#FFCC99', '#FFD700', '#C2C2F0'])
+                    ax.set_title("Cost Distribution")
+                    ax.set_ylabel("Cost (£)")
+                    plt.xticks(rotation=45, ha='right')
+                    for i, v in enumerate(sizes):
+                        ax.text(i, v, f'£{v:,.0f}', ha='center', va='bottom')
+                    st.pyplot(fig)
+                    # Horizontal bar chart
+                    fig2, ax2 = plt.subplots(figsize=(10, 6))
+                    ax2.barh(labels, sizes, color=['#FF9999', '#66B2FF', '#99FF99', '#FFCC99', '#FFD700', '#C2C2F0'])
+                    ax2.set_title("Cost by Category")
+                    ax2.set_xlabel("Cost (£)")
+                    for i, v in enumerate(sizes):
+                        ax2.text(v, i, f'£{v:,.0f}', va='center')
+                    st.pyplot(fig2)
                 with tab2:
                     # Cost table
                     st.subheader("Detailed Cost Breakdown")
