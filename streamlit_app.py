@@ -143,7 +143,9 @@ def main():
     with col2:
         st.title("Advanced Casting Cost Estimator")
         st.caption("Based on research: Metals 2023, 13(2), 216 - Cost Estimation of Metal Casting with Sand Mould")
-        st.caption("Designed By Tabish Mehmood Contact Email: maliktabish530@gmail.com")
+        st.caption("Designed By Tabish Mehmood")
+        st.caption("Contact Email: maliktabish530@gmail.com")
+
 
     # Initialize session state
     if 'density' not in st.session_state:
