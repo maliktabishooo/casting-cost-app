@@ -158,9 +158,16 @@ def main():
     st.set_page_config(
         layout="wide", 
         page_title="Advanced Casting Cost Estimator",
-        page_icon="🔩"
+        page_icon="budget.png"
     )
-    st.title("🔩 Advanced Casting Cost Estimator")
+
+    # Create columns for the title and image
+    col1, col2 = st.columns([1, 5])
+    with col1:
+        st.image("budget.png", width=120)
+    with col2:
+        st.title("Advanced Casting Cost Estimator")
+
     st.caption("Based on research: Metals 2023, 13(2), 216 - Cost Estimation of Metal Casting with Sand Mould")
     
     # Initialize session state
