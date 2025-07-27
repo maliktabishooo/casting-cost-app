@@ -326,17 +326,27 @@ def main():
                     col3, col4 = st.columns([1, 1])
                     with col3:
                         # Pie chart (exclude total and profit/loss)
-                        pie_fig, pie_ax = plt.subplots(figsize=(8, 6))
-                        labels = [k for k in cost_breakdown.keys() if k not in ['Total', 'Profit/Loss']]
-                        sizes = [cost_breakdown[k] for k in labels]
-                        pie_ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, textprops={'fontsize': 10})
-                        pie_ax.set_title("Cost Distribution")
-                       pie_ax.axis('equal')  # Equal aspect ratio ensures circle shape
+                       # Pie chart (exclude total and profit/loss)
+pie_fig, pie_ax = plt.subplots(figsize=(8, 6))
+labels = [k for k in cost_breakdown.keys() if k not in ['Total', 'Profit/Loss']]
+sizes = [cost_breakdown[k] for k in labels]
 
-                       plt.tight_layout()  # Fix overlap
-                       st.pyplot(pie_fig)
-                        pie_ax.set_title("Cost Distribution")
-                        st.pyplot(pie_fig)
+# Plot pie chart
+wedges, texts, autotexts = pie_ax.pie(
+    sizes,
+    labels=labels,
+    autopct='%1.1f%%',
+    startangle=90,
+    textprops={'fontsize': 10},
+    labeldistance=1.1,
+    pctdistance=0.8
+)
+
+pie_ax.set_title("Cost Distribution")
+pie_ax.axis('equal')  # Equal aspect ratio ensures circle shape
+plt.tight_layout()
+st.pyplot(pie_fig)
+
                     with col4:
                         # Bar chart
                         bar_fig, bar_ax = plt.subplots(figsize=(6, 4))
