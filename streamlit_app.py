@@ -325,9 +325,8 @@ def main():
                     st.subheader("Cost Distribution")
                     col3, col4 = st.columns([1, 1])
                     with col3:
-                        # Pie chart (exclude total and profit/loss)
                        # Pie chart (exclude total and profit/loss)
-pie_fig, pie_ax = plt.subplots(figsize=(8, 6))
+pie_fig, pie_ax = plt.subplots(figsize=(6, 4))
 labels = [k for k in cost_breakdown.keys() if k not in ['Total', 'Profit/Loss']]
 sizes = [cost_breakdown[k] for k in labels]
 
