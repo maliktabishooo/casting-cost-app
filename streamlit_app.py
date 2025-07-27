@@ -48,7 +48,7 @@ def labour_cost(params):
                         * params['designers_count']
                         * params['design_hours']
                         / params['quantity'])
-    technical = (params['f_r'] * params['activity_rejection']
+    technical = (params['f_r'] * params['activity_rejection]
                  * params['salary_technical']
                  * params['technicians_count']
                  * params['labor_hours']
@@ -324,21 +324,24 @@ def main():
                     st.subheader("Cost Distribution")
                     col3, col4 = st.columns([1, 1])
                     with col3:
-                        # Pie chart (exclude total and profit/loss)
-                        pie_fig, pie_ax = plt.subplots(figsize=(6, 4))
+                        # Horizontal bar chart (replace pie chart)
+                        bar_fig, bar_ax = plt.subplots(figsize=(6, 4))
                         labels = [k for k in cost_breakdown.keys() if k not in ['Total', 'Profit/Loss']]
                         sizes = [cost_breakdown[k] for k in labels]
-                        pie_ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90)
-                        pie_ax.set_title("Cost Distribution")
-                        st.pyplot(pie_fig)
+                        bar_ax.barh(labels, sizes, color=['purple', 'red', 'blue', 'green', 'pink', 'brown'])
+                        bar_ax.set_xlabel("Cost (£)")
+                        bar_ax.set_title("Cost Distribution")
+                        for i, v in enumerate(sizes):
+                            bar_ax.text(v, i, f'{v:,.0f}', va='center')
+                        st.pyplot(bar_fig)
                     with col4:
                         # Bar chart
-                        bar_fig, bar_ax = plt.subplots(figsize=(6, 4))
-                        bar_ax.bar(labels, sizes)
-                        bar_ax.set_ylabel("Cost (£)")
-                        bar_ax.set_title("Cost by Category")
-                        bar_ax.tick_params(axis='x', rotation=45)
-                        st.pyplot(bar_fig)
+                        bar_fig2, bar_ax2 = plt.subplots(figsize=(6, 4))
+                        bar_ax2.bar(labels, sizes, color=['purple', 'red', 'blue', 'green', 'pink', 'brown'])
+                        bar_ax2.set_ylabel("Cost (£)")
+                        bar_ax2.set_title("Cost by Category")
+                        bar_ax2.tick_params(axis='x', rotation=45)
+                        st.pyplot(bar_fig2)
                 with tab2:
                     # Cost table
                     st.subheader("Detailed Cost Breakdown")
